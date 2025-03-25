@@ -1,0 +1,51 @@
+{{- if .Values.statefulset.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.statefulset.name }}-sts
+spec:
+  serviceName: {{ .Values.statefulset.service.name }}-service
+  replicas: {{ .Values.statefulset.replicas }}
+  selector:
+    matchLabels:
+      {{- include "labelForSts" . | indent 5}}
+  template:
+    metadata:
+      labels:
+        {{- include "labelForSts" . | indent 7}}
+    spec:
+      containers:
+      - name: {{ .Values.statefulset.name }}
+        image: {{ .Values.statefulset.image }}:{{ .Values.statefulset.tag }}
+        ports:
+          - containerPort: {{ .Values.statefulset.service.port }}
+        env:
+        {{- range .Values.configMap.valueForSts}}
+        - name: {{ .envName}}
+          valueFrom:
+            configMapKeyRef:
+              name: {{ $.Values.configMap.file.name}}
+              key: {{ .key}}
+        {{- end}}
+        {{- range .Values.secret.valueForSts}}
+        - name: {{ .name}}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $.Values.secret.file.name}}
+              key: {{ .key}}
+        {{- end}}
+        volumeMounts:
+          - name: {{ .Values.statefulset.volumeClaimName }}
+            mountPath: {{ .Values.statefulset.mountPath }}
+
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ .Values.statefulset.volumeClaimName }}
+      spec:
+        accessModes: 
+        - {{.Values.statefulset.access}}
+        resources:
+          requests:
+            storage: {{ .Values.statefulset.storage | default "1Gi" }}
+
+{{- end }}
