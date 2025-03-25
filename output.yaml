@@ -1,0 +1,251 @@
+---
+# Source: making-all-kind-from-helm/templates/service-account.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: making-all-kind-from-helm-sa
+---
+# Source: making-all-kind-from-helm/templates/global-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+type: Opaque
+data:
+  postgres-password: cG9zdGdyZXM=
+---
+# Source: making-all-kind-from-helm/templates/global-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: postgres-config
+data:
+    database_name: mydatabase
+    host: postgres-service.default.svc.cluster.local
+    database_user: postgres
+---
+# Source: making-all-kind-from-helm/templates/pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: my-pv-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteMany
+  hostPath:
+    path: /var/lib/postgresql/data
+---
+# Source: making-all-kind-from-helm/templates/pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: making-all-kind-from-helm/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service-service
+spec:
+  type: NodePort
+  selector:   
+   app: frontend
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30003
+---
+# Source: making-all-kind-from-helm/templates/serviceForSts.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  labels:   
+   app: postgres
+spec:
+  ports:
+    - port: 5432
+  clusterIP: None
+  selector:
+    app: postgres
+---
+# Source: making-all-kind-from-helm/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:   
+   app: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:     
+     app: frontend
+  template:
+    metadata:
+      labels:       
+       app: frontend
+    spec:
+      nodeName: kind-for-assigment-control-plane
+      containers:
+      - name: frontend
+        image: itsmrhashtag/frontend:latest
+        env:
+        - name: HOST
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: host
+        - name: DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: database_name
+        - name: DATABASE_USER
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: database_user
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: postgres-password
+        ports:
+        - containerPort: 3000
+---
+# Source: making-all-kind-from-helm/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: making-all-kind-from-helm-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: making-all-kind-from-helm-deployment
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+---
+# Source: making-all-kind-from-helm/templates/statefulSet.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-sts
+spec:
+  serviceName: postgres-service
+  replicas: 1
+  selector:
+    matchLabels:     
+     app: postgres
+  template:
+    metadata:
+      labels:       
+       app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:17.4
+        ports:
+          - containerPort: 5432
+        env:
+        - name: HOST
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: host
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: database_name
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-config
+              key: database_user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: postgres-password
+        volumeMounts:
+          - name: postgres-volume
+            mountPath: /var/lib/postgresql/data
+
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-volume
+      spec:
+        accessModes: 
+        - ReadWriteMany
+        resources:
+          requests:
+            storage: 1Gi
+---
+# Source: making-all-kind-from-helm/templates/gateway.yaml
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: making-all-kind-from-helm-gateway
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      protocol: HTTPS
+      name: https
+    hosts:
+    - example.com
+    tls:
+      mode: SIMPLE
+      credentialName: my-tls-secret
+
+  - port:
+      number: 80
+      protocol: HTTP
+      name: http
+    hosts:
+    - example.com
+---
+# Source: making-all-kind-from-helm/templates/virtual-service.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: making-all-kind-from-helm-virtualservice
+spec:
+  hosts:
+  - example.com
+  gateways:
+  - making-all-kind-from-helm-gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/"
+    route:
+    - destination:
+        host: making-all-kind-from-helm-service
+        port:
+          number: 3000

@@ -1,5 +1,5 @@
 {{- define "labels"}}
-app: frontend
+app: {{.Values.deployment.name}}
 {{- end}}
 
 {{- define "labelForSts"}}
