@@ -13,7 +13,7 @@ spec:
       paths:
       - pathType: Prefix
         path: "/"
-        frontend:
+        frontend: 
           service:
             name: {{.Values.service.name}}-service
             port: 
