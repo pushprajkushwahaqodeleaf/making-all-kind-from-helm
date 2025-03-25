@@ -1,0 +1,39 @@
+{{- if .Values.deployment.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.deployment.name}}
+  labels:
+    {{- include "labels" . | indent 3}}
+spec:
+  replicas: {{ .Values.deployment.replica}}
+  selector:
+    matchLabels:
+      {{- include "labels" . | indent 5}}
+  template:
+    metadata:
+      labels:
+        {{- include "labels" . | indent 7}}
+    spec:
+      nodeName: kind-for-assigment-control-plane
+      containers:
+      - name: {{ .Values.deployment.container.name }}
+        image: {{ .Values.image.name }}:{{.Values.image.tag}}
+        env:
+        {{- range .Values.configMap.values}}
+        - name: {{ .envName}}
+          valueFrom:
+            configMapKeyRef:
+              name: {{ $.Values.configMap.file.name}}
+              key: {{ .key}}
+        {{- end}}
+        {{- range .Values.secret.values}}
+        - name: {{ .name}}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $.Values.secret.file.name}}
+              key: {{ .key}}
+        {{- end}}
+        ports:
+        - containerPort: {{ .Values.deployment.container.port}}
+{{- end}}

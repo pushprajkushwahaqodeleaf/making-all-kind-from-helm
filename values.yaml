@@ -1,0 +1,93 @@
+deployment:
+  enabled: true  
+  name: frontend
+  container:
+    name: frontend
+    port: 3000
+  replica: 2
+
+image:
+  name: itsmrhashtag/frontend
+  tag: latest
+
+configMap:
+  file:
+    name: postgres-config
+  values:
+    - envName: HOST
+      key: host
+    - envName: DATABASE
+      key: database_name
+    - envName: DATABASE_USER
+      key: database_user
+  valueForSts:
+    - envName: HOST
+      key: host
+    - envName: POSTGRES_DB
+      key: database_name
+    - envName: POSTGRES_USER
+      key: database_user
+
+secret:
+  file:
+    name: postgres-secret
+  values:
+    - name: DATABASE_PASSWORD
+      key: postgres-password
+  valueForSts:
+    - name: POSTGRES_PASSWORD
+      key: postgres-password
+
+service:
+  name: frontend-service
+  type: NodePort
+  port: 3000
+  targetPort: 3000
+  nodePort: 30003
+
+statefulset:
+  enabled: true
+  name: "postgres"
+  replicas: 1
+  image: "postgres"
+  tag: 17.4
+  port: 5432
+  volume: true
+  volumeClaimName: "postgres-volume"
+  storage: "1Gi"
+  mountPath: "/var/lib/postgresql/data"
+  access: "ReadWriteMany"
+
+  service:
+    name: "postgres"
+    port: 5432
+
+pvc:
+  enabled: true
+  name: "postgres"
+  storage: "1Gi"
+  access: "ReadWriteMany"
+
+pv:
+  enabled: true
+  name: "my-pv"
+  storage: "10Gi"
+  hostPath: "/var/lib/postgresql/data"
+  access: "ReadWriteMany"
+
+hpa:
+  enabled: true
+  targetKind: "Deployment"
+  minReplicas: 2
+  maxReplicas: 5
+  cpuUtilization: 75
+  memoryUtilization: 75
+
+ingress: 
+  enabled: false
+  name: "ingress"
+  host: "example.com"
+  className: "nginx"
+
+serviceaccount:
+  enabled: true

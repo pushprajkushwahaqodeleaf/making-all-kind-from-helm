@@ -1,0 +1,13 @@
+{{- if .Values.pv.enabled }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{.Values.pv.name}}-pv
+spec:
+  capacity:
+    storage: {{ .Values.pv.storage | default "10Gi" }}
+  accessModes:
+  - {{.Values.pv.access}}
+  hostPath:
+    path: {{ .Values.pv.hostPath }}
+{{- end}}
